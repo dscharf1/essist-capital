@@ -14,7 +14,230 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      card_allocations: {
+        Row: {
+          application_id: string
+          card_number_masked: string
+          created_at: string
+          id: string
+          labor_amount: number
+          labor_unlocked: boolean
+          materials_amount: number
+          materials_unlocked: boolean
+          merchant_category_lock: string[] | null
+          total_amount: number
+        }
+        Insert: {
+          application_id: string
+          card_number_masked: string
+          created_at?: string
+          id?: string
+          labor_amount: number
+          labor_unlocked?: boolean
+          materials_amount: number
+          materials_unlocked?: boolean
+          merchant_category_lock?: string[] | null
+          total_amount: number
+        }
+        Update: {
+          application_id?: string
+          card_number_masked?: string
+          created_at?: string
+          id?: string
+          labor_amount?: number
+          labor_unlocked?: boolean
+          materials_amount?: number
+          materials_unlocked?: boolean
+          merchant_category_lock?: string[] | null
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_allocations_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          application_id: string
+          created_at: string
+          document_type: string
+          envelope_id: string | null
+          id: string
+          sent_at: string | null
+          signed_at: string | null
+          status: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          document_type: string
+          envelope_id?: string | null
+          id?: string
+          sent_at?: string | null
+          signed_at?: string | null
+          status?: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          document_type?: string
+          envelope_id?: string | null
+          id?: string
+          sent_at?: string | null
+          signed_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspections: {
+        Row: {
+          application_id: string
+          completed_date: string | null
+          created_at: string
+          id: string
+          inspector_name: string | null
+          notes: string | null
+          passed: boolean | null
+          scheduled_date: string | null
+          status: string
+        }
+        Insert: {
+          application_id: string
+          completed_date?: string | null
+          created_at?: string
+          id?: string
+          inspector_name?: string | null
+          notes?: string | null
+          passed?: boolean | null
+          scheduled_date?: string | null
+          status?: string
+        }
+        Update: {
+          application_id?: string
+          completed_date?: string | null
+          created_at?: string
+          id?: string
+          inspector_name?: string | null
+          notes?: string | null
+          passed?: boolean | null
+          scheduled_date?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspections_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loan_applications: {
+        Row: {
+          address: string | null
+          city: string | null
+          contractor_id: string | null
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string | null
+          project_description: string | null
+          project_type: string
+          requested_amount: number
+          state: string | null
+          status: Database["public"]["Enums"]["application_status"]
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          email: string
+          first_name: string
+          id?: string
+          last_name: string
+          phone?: string | null
+          project_description?: string | null
+          project_type: string
+          requested_amount: number
+          state?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          phone?: string | null
+          project_description?: string | null
+          project_type?: string
+          requested_amount?: number
+          state?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
+      workflow_events: {
+        Row: {
+          application_id: string
+          created_at: string
+          event_data: Json | null
+          event_type: string
+          id: string
+          triggered_by: string | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +246,18 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      application_status:
+        | "draft"
+        | "submitted"
+        | "document_sent"
+        | "document_signed"
+        | "card_provisioned"
+        | "project_started"
+        | "inspection_pending"
+        | "inspection_passed"
+        | "funds_released"
+        | "completed"
+        | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +384,20 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      application_status: [
+        "draft",
+        "submitted",
+        "document_sent",
+        "document_signed",
+        "card_provisioned",
+        "project_started",
+        "inspection_pending",
+        "inspection_passed",
+        "funds_released",
+        "completed",
+        "rejected",
+      ],
+    },
   },
 } as const
