@@ -13,6 +13,15 @@ import Apply from "./pages/Apply";
 import ApplicationStatus from "./pages/ApplicationStatus";
 import NotFound from "./pages/NotFound";
 
+// Admin pages
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminClients from "./pages/admin/AdminClients";
+import AdminApprovals from "./pages/admin/AdminApprovals";
+import AdminDocuments from "./pages/admin/AdminDocuments";
+import AdminCards from "./pages/admin/AdminCards";
+import AdminNotifications from "./pages/admin/AdminNotifications";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -30,6 +39,17 @@ const App = () => (
           <Route path="/resources" element={<Resources />} />
           <Route path="/apply" element={<Apply />} />
           <Route path="/application/:id" element={<ApplicationStatus />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="clients" element={<AdminClients />} />
+            <Route path="approvals" element={<AdminApprovals />} />
+            <Route path="documents" element={<AdminDocuments />} />
+            <Route path="cards" element={<AdminCards />} />
+            <Route path="notifications" element={<AdminNotifications />} />
+          </Route>
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
