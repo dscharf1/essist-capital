@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Home, Users, Wrench, Info, Phone, BookOpen } from "lucide-react";
+import { Menu, X, Home, Users, Wrench, Info, Phone, BookOpen, Shield } from "lucide-react";
 
 const navigation = [
   { name: "Home", href: "/", icon: Home },
@@ -49,6 +49,12 @@ const Header = () => {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex lg:items-center lg:gap-3">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin" className="flex items-center gap-1.5">
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            </Button>
             <Button variant="ghost" asChild>
               <Link to="/login">Log In</Link>
             </Button>
@@ -87,6 +93,12 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border/50">
+                <Button variant="outline" asChild className="w-full">
+                  <Link to="/admin" className="flex items-center justify-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Admin Portal
+                  </Link>
+                </Button>
                 <Button variant="outline" asChild className="w-full">
                   <Link to="/login">Log In</Link>
                 </Button>
