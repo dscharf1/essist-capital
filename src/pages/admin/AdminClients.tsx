@@ -4,6 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Search,
   Filter,
@@ -12,6 +30,7 @@ import {
   Phone,
   MapPin,
   Eye,
+  Plus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -20,12 +39,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+
+const projectTypes = [
+  "Kitchen Remodel",
+  "Bathroom Remodel",
+  "Roof Replacement",
+  "HVAC Installation",
+  "Window Replacement",
+  "Flooring",
+  "Siding",
+  "Solar Installation",
+  "Other",
+];
 
 const AdminClients = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [clients, setClients] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    zip_code: "",
+    project_type: "",
+    project_description: "",
+    requested_amount: "",
+  });
 
   useEffect(() => {
     loadClients();
@@ -39,7 +88,6 @@ const AdminClients = () => {
       .order("created_at", { ascending: false });
 
     if (data) {
-      // Group by email to get unique clients
       const uniqueClients = data.reduce((acc: any[], curr) => {
         const existing = acc.find((c) => c.email === curr.email);
         if (!existing) {
@@ -56,6 +104,67 @@ const AdminClients = () => {
       setClients(uniqueClients);
     }
     setIsLoading(false);
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.first_name || !formData.last_name || !formData.email || !formData.project_type || !formData.requested_amount) {
+      toast({
+        title: "Missing required fields",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const { error } = await supabase.from("loan_applications").insert({
+      first_name: formData.first_name.trim(),
+      last_name: formData.last_name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      phone: formData.phone.trim() || null,
+      address: formData.address.trim() || null,
+      city: formData.city.trim() || null,
+      state: formData.state.trim() || null,
+      zip_code: formData.zip_code.trim() || null,
+      project_type: formData.project_type,
+      project_description: formData.project_description.trim() || null,
+      requested_amount: parseFloat(formData.requested_amount),
+      status: "submitted",
+    });
+
+    setIsSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Error creating client",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Client added successfully",
+        description: `${formData.first_name} ${formData.last_name} has been added to the system.`,
+      });
+      setIsDialogOpen(false);
+      setFormData({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        address: "",
+        city: "",
+        state: "",
+        zip_code: "",
+        project_type: "",
+        project_description: "",
+        requested_amount: "",
+      });
+      loadClients();
+    }
   };
 
   const filteredClients = clients.filter(
@@ -84,10 +193,162 @@ const AdminClients = () => {
           <h1 className="text-3xl font-bold">Clients</h1>
           <p className="text-muted-foreground">Manage your client database</p>
         </div>
-        <Button>
-          <Filter className="w-4 h-4 mr-2" />
-          Export
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Client
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Client</DialogTitle>
+                <DialogDescription>
+                  Manually add a new client and their loan application to the system.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="first_name">First Name *</Label>
+                    <Input
+                      id="first_name"
+                      value={formData.first_name}
+                      onChange={(e) => handleInputChange("first_name", e.target.value)}
+                      placeholder="John"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="last_name">Last Name *</Label>
+                    <Input
+                      id="last_name"
+                      value={formData.last_name}
+                      onChange={(e) => handleInputChange("last_name", e.target.value)}
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange("address", e.target.value)}
+                    placeholder="123 Main St"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => handleInputChange("city", e.target.value)}
+                      placeholder="Austin"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => handleInputChange("state", e.target.value)}
+                      placeholder="TX"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="zip_code">ZIP Code</Label>
+                    <Input
+                      id="zip_code"
+                      value={formData.zip_code}
+                      onChange={(e) => handleInputChange("zip_code", e.target.value)}
+                      placeholder="78701"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="project_type">Project Type *</Label>
+                    <Select
+                      value={formData.project_type}
+                      onValueChange={(value) => handleInputChange("project_type", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select project type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projectTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="requested_amount">Requested Amount *</Label>
+                    <Input
+                      id="requested_amount"
+                      type="number"
+                      value={formData.requested_amount}
+                      onChange={(e) => handleInputChange("requested_amount", e.target.value)}
+                      placeholder="25000"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="project_description">Project Description</Label>
+                  <Textarea
+                    id="project_description"
+                    value={formData.project_description}
+                    onChange={(e) => handleInputChange("project_description", e.target.value)}
+                    placeholder="Describe the project details..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmit} disabled={isSubmitting}>
+                  {isSubmitting ? "Adding..." : "Add Client"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button variant="outline">
+            <Filter className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
