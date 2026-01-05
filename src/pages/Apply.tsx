@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const projectTypes = [
 
 const Apply = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const { submitApplication, isLoading } = useWorkflow();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -39,6 +41,19 @@ const Apply = () => {
     requestedAmount: 25000,
     materialsPercentage: 60,
   });
+
+  // Pre-fill form with user profile data
+  useEffect(() => {
+    if (user && profile) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: profile.first_name || prev.firstName,
+        lastName: profile.last_name || prev.lastName,
+        email: profile.email || user.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [user, profile]);
 
   const updateField = (field: string, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -65,6 +80,7 @@ const Apply = () => {
         requestedAmount: formData.requestedAmount,
         materialsAmount,
         laborAmount,
+        userId: user?.id,
       });
 
       navigate(`/application/${result.applicationId}`);

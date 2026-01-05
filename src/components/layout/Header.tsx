@@ -1,7 +1,16 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Home, Users, Wrench, Info, Phone, BookOpen, Shield } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Menu, X, Home, Users, Wrench, Info, Phone, BookOpen, Shield, User, LogOut, LayoutDashboard } from "lucide-react";
 
 const navigation = [
   { name: "Home", href: "/", icon: Home },
@@ -15,6 +24,23 @@ const navigation = [
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, profile, isAdmin, signOut, isLoading } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
+  const getInitials = () => {
+    if (profile?.first_name && profile?.last_name) {
+      return `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase();
+    }
+    if (user?.email) {
+      return user.email[0].toUpperCase();
+    }
+    return 'U';
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
@@ -47,20 +73,75 @@ const Header = () => {
             ))}
           </div>
 
-          {/* CTA Buttons */}
+          {/* CTA Buttons / User Menu */}
           <div className="hidden lg:flex lg:items-center lg:gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/admin" className="flex items-center gap-1.5">
-                <Shield className="w-4 h-4" />
-                Admin
-              </Link>
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link to="/login">Log In</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/homeowners">Apply Now</Link>
-            </Button>
+            {!isLoading && user ? (
+              <>
+                {isAdmin && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/admin" className="flex items-center gap-1.5">
+                      <Shield className="w-4 h-4" />
+                      Admin
+                    </Link>
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/dashboard" className="flex items-center gap-1.5">
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </Link>
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || 'User'} />
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {getInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <div className="flex flex-col space-y-1 p-2">
+                      <p className="text-sm font-medium leading-none">
+                        {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : 'User'}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/dashboard" className="cursor-pointer">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/apply" className="cursor-pointer">
+                        <User className="mr-2 h-4 w-4" />
+                        New Application
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/auth">Log In</Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/homeowners">Apply Now</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -93,18 +174,37 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border/50">
-                <Button variant="outline" asChild className="w-full">
-                  <Link to="/admin" className="flex items-center justify-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Admin Portal
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild className="w-full">
-                  <Link to="/login">Log In</Link>
-                </Button>
-                <Button asChild className="w-full">
-                  <Link to="/homeowners">Apply Now</Link>
-                </Button>
+                {!isLoading && user ? (
+                  <>
+                    <Button variant="outline" asChild className="w-full">
+                      <Link to="/dashboard" className="flex items-center justify-center gap-2">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </Link>
+                    </Button>
+                    {isAdmin && (
+                      <Button variant="outline" asChild className="w-full">
+                        <Link to="/admin" className="flex items-center justify-center gap-2">
+                          <Shield className="w-4 h-4" />
+                          Admin Portal
+                        </Link>
+                      </Button>
+                    )}
+                    <Button variant="destructive" onClick={handleSignOut} className="w-full">
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" asChild className="w-full">
+                      <Link to="/auth">Log In</Link>
+                    </Button>
+                    <Button asChild className="w-full">
+                      <Link to="/homeowners">Apply Now</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

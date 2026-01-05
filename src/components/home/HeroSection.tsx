@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2, Shield, Clock } from "lucide-react";
 import heroImage from "@/assets/hero-home.jpg";
@@ -10,6 +11,17 @@ const benefits = [
 ];
 
 const HeroSection = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleGetStarted = () => {
+    if (user) {
+      navigate("/apply");
+    } else {
+      navigate("/auth", { state: { from: { pathname: "/apply" } } });
+    }
+  };
+
   return (
     <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
       {/* Background */}
@@ -45,11 +57,9 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-10 animate-fade-up stagger-3">
-              <Button variant="hero" asChild>
-                <Link to="/homeowners" className="gap-2">
-                  Get Started
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
+              <Button variant="hero" onClick={handleGetStarted}>
+                Get Started
+                <ArrowRight className="w-5 h-5" />
               </Button>
               <Button variant="hero-outline" asChild>
                 <Link to="/#how-it-works">See How It Works</Link>
