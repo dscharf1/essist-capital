@@ -45,6 +45,7 @@ serve(async (req) => {
           requestedAmount: number;
           materialsAmount: number;
           laborAmount: number;
+          userId?: string;
         };
 
         const { data: application, error: appError } = await supabase
@@ -61,6 +62,7 @@ serve(async (req) => {
             project_type: applicationData.projectType,
             project_description: applicationData.projectDescription,
             requested_amount: applicationData.requestedAmount,
+            user_id: applicationData.userId || null,
             status: "submitted",
           })
           .select()

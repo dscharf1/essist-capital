@@ -73,6 +73,7 @@ export const useWorkflow = () => {
       requestedAmount: number;
       materialsAmount: number;
       laborAmount: number;
+      userId?: string;
     }) => {
       const result = await callWorkflow("submit_application", undefined, applicationData);
 

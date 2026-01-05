@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,20 @@ const projectTypes = [
 
 const Homeowners = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loanAmount, setLoanAmount] = useState([25000]);
   const [loanTerm, setLoanTerm] = useState([36]);
   const [selectedProject, setSelectedProject] = useState("");
 
   const monthlyPayment = (loanAmount[0] / loanTerm[0]).toFixed(0);
+
+  const handleApplyClick = () => {
+    if (user) {
+      navigate("/apply");
+    } else {
+      navigate("/auth", { state: { from: { pathname: "/apply" } } });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -138,7 +148,7 @@ const Homeowners = () => {
                     <p className="text-xs text-muted-foreground mt-2">*0% APR for qualified applicants. Actual rate may vary.</p>
                   </div>
 
-                  <Button className="w-full" size="lg" onClick={() => navigate("/apply")}>
+                  <Button className="w-full" size="lg" onClick={handleApplyClick}>
                     Check Your Rate
                     <ArrowRight className="w-5 h-5" />
                   </Button>
@@ -217,7 +227,7 @@ const Homeowners = () => {
                   <Label htmlFor="zipCode">Zip Code</Label>
                   <Input id="zipCode" placeholder="12345" className="mt-1" />
                 </div>
-                <Button className="w-full" size="lg" onClick={() => navigate("/apply")}>
+                <Button className="w-full" size="lg" onClick={handleApplyClick}>
                   Start Full Application
                   <ArrowRight className="w-5 h-5" />
                 </Button>
