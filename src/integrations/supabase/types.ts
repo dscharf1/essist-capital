@@ -206,6 +206,113 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          application_id: string | null
+          bank_name: string | null
+          brand: string | null
+          created_at: string
+          id: string
+          is_default: boolean | null
+          last_four: string | null
+          payment_type: string
+          stripe_customer_id: string
+          stripe_payment_method_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          bank_name?: string | null
+          brand?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          last_four?: string | null
+          payment_type: string
+          stripe_customer_id: string
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          bank_name?: string | null
+          brand?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          last_four?: string | null
+          payment_type?: string
+          stripe_customer_id?: string
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          application_id: string
+          created_at: string
+          failure_reason: string | null
+          id: string
+          payment_date: string
+          processed_at: string | null
+          schedule_id: string
+          status: string
+          stripe_payment_intent_id: string | null
+        }
+        Insert: {
+          amount: number
+          application_id: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          payment_date: string
+          processed_at?: string | null
+          schedule_id: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+        }
+        Update: {
+          amount?: number
+          application_id?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          payment_date?: string
+          processed_at?: string | null
+          schedule_id?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "repayment_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -241,6 +348,72 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      repayment_schedules: {
+        Row: {
+          application_id: string
+          created_at: string
+          id: string
+          monthly_amount: number
+          next_payment_date: string
+          payment_method_id: string | null
+          payments_made: number | null
+          remaining_balance: number
+          reminder_3_day_sent: boolean | null
+          reminder_7_day_sent: boolean | null
+          status: string
+          total_amount: number
+          total_payments: number
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          id?: string
+          monthly_amount: number
+          next_payment_date: string
+          payment_method_id?: string | null
+          payments_made?: number | null
+          remaining_balance: number
+          reminder_3_day_sent?: boolean | null
+          reminder_7_day_sent?: boolean | null
+          status?: string
+          total_amount: number
+          total_payments: number
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          id?: string
+          monthly_amount?: number
+          next_payment_date?: string
+          payment_method_id?: string | null
+          payments_made?: number | null
+          remaining_balance?: number
+          reminder_3_day_sent?: boolean | null
+          reminder_7_day_sent?: boolean | null
+          status?: string
+          total_amount?: number
+          total_payments?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repayment_schedules_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "loan_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repayment_schedules_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
