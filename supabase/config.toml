@@ -1,1 +1,16 @@
 project_id = "vfplwkrsjtwidejoacnb"
+
+[functions.workflow-webhook]
+verify_jwt = false
+
+[functions.stripe-payment-setup]
+verify_jwt = false
+
+[functions.process-payment]
+verify_jwt = false
+
+[functions.send-payment-reminders]
+verify_jwt = false
+
+[functions.check-missed-payments]
+verify_jwt = false
