@@ -13,6 +13,7 @@ import Contact from "./pages/Contact";
 import Resources from "./pages/Resources";
 import Apply from "./pages/Apply";
 import ApplicationStatus from "./pages/ApplicationStatus";
+import PaymentSetup from "./pages/PaymentSetup";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -60,6 +61,11 @@ const App = () => (
             <Route path="/application/:id" element={
               <ProtectedRoute>
                 <ApplicationStatus />
+              </ProtectedRoute>
+            } />
+            <Route path="/application/:applicationId/payments" element={
+              <ProtectedRoute>
+                <PaymentSetup />
               </ProtectedRoute>
             } />
             

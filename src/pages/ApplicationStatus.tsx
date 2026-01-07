@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   Loader2,
   Lock,
   Unlock,
+  DollarSign,
 } from "lucide-react";
 
 const statusSteps = [
@@ -271,6 +272,12 @@ const ApplicationStatus = () => {
                           Labor funds unlock after inspection approval
                         </p>
                       )}
+                      <Link to={`/application/${id}/payments`} className="block mt-4">
+                        <Button variant="secondary" size="sm" className="w-full">
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          Set Up Payments
+                        </Button>
+                      </Link>
                     </div>
                   )}
 
