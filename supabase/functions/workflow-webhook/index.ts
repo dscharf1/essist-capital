@@ -180,6 +180,46 @@ serve(async (req) => {
 
         if (cardError) throw cardError;
 
+        // Create repayment schedule for the loan
+        const totalAmount = application.requested_amount;
+        const termMonths = 12; // Default 12-month term
+        const monthlyAmount = Math.ceil((totalAmount / termMonths) * 100) / 100;
+        const firstPaymentDate = new Date();
+        firstPaymentDate.setMonth(firstPaymentDate.getMonth() + 1);
+        firstPaymentDate.setDate(1); // Set to first of next month
+
+        const { data: schedule, error: schedError } = await supabase
+          .from("repayment_schedules")
+          .insert({
+            application_id: applicationId,
+            monthly_amount: monthlyAmount,
+            total_amount: totalAmount,
+            remaining_balance: totalAmount,
+            next_payment_date: firstPaymentDate.toISOString().split('T')[0],
+            total_payments: termMonths,
+            payments_made: 0,
+            status: "active",
+          })
+          .select()
+          .single();
+
+        if (schedError) {
+          console.error("Failed to create repayment schedule:", schedError);
+        } else {
+          // Log repayment schedule creation
+          await supabase.from("workflow_events").insert({
+            application_id: applicationId,
+            event_type: "repayment_schedule_created",
+            event_data: {
+              schedule_id: schedule.id,
+              monthly_amount: monthlyAmount,
+              total_payments: termMonths,
+              first_payment_date: firstPaymentDate.toISOString().split('T')[0],
+            },
+            triggered_by: "system",
+          });
+        }
+
         // Update application status
         await supabase
           .from("loan_applications")
@@ -206,7 +246,9 @@ serve(async (req) => {
           cardNumber: card.card_number_masked,
           materialsAvailable: materialsAmount,
           laborLocked: laborAmount,
-          message: "Document signed. Card provisioned with materials funds unlocked.",
+          scheduleId: schedule?.id,
+          monthlyPayment: monthlyAmount,
+          message: "Document signed. Card provisioned with materials funds unlocked. Repayment schedule created.",
           nextStep: "start_project",
         };
         break;
