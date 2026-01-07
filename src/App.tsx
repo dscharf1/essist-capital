@@ -25,6 +25,7 @@ import AdminClients from "./pages/admin/AdminClients";
 import AdminApprovals from "./pages/admin/AdminApprovals";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 import AdminCards from "./pages/admin/AdminCards";
+import AdminPayments from "./pages/admin/AdminPayments";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 
 const queryClient = new QueryClient();
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="approvals" element={<AdminApprovals />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="cards" element={<AdminCards />} />
+              <Route path="payments" element={<AdminPayments />} />
               <Route path="notifications" element={<AdminNotifications />} />
             </Route>
             
