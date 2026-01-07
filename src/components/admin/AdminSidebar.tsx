@@ -18,6 +18,7 @@ import {
   FileCheck,
   FolderOpen,
   CreditCard,
+  DollarSign,
   Bell,
   Settings,
   LogOut,
@@ -31,6 +32,7 @@ const menuItems = [
   { title: "Approvals", url: "/admin/approvals", icon: FileCheck },
   { title: "Documents", url: "/admin/documents", icon: FolderOpen },
   { title: "Cards", url: "/admin/cards", icon: CreditCard },
+  { title: "Payments", url: "/admin/payments", icon: DollarSign },
   { title: "Notifications", url: "/admin/notifications", icon: Bell },
 ];
 
