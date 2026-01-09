@@ -23,6 +23,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ const menuItems = [
   { title: "Documents", url: "/admin/documents", icon: FolderOpen },
   { title: "Cards", url: "/admin/cards", icon: CreditCard },
   { title: "Payments", url: "/admin/payments", icon: DollarSign },
+  { title: "Cron Jobs", url: "/admin/cron-jobs", icon: Clock },
   { title: "Notifications", url: "/admin/notifications", icon: Bell },
 ];
 

@@ -26,6 +26,7 @@ import AdminApprovals from "./pages/admin/AdminApprovals";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 import AdminCards from "./pages/admin/AdminCards";
 import AdminPayments from "./pages/admin/AdminPayments";
+import AdminCronJobs from "./pages/admin/AdminCronJobs";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ const App = () => (
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="cards" element={<AdminCards />} />
               <Route path="payments" element={<AdminPayments />} />
+              <Route path="cron-jobs" element={<AdminCronJobs />} />
               <Route path="notifications" element={<AdminNotifications />} />
             </Route>
             
