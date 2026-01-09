@@ -473,7 +473,58 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cron_job_history: {
+        Row: {
+          command: string | null
+          database: string | null
+          end_time: string | null
+          job_pid: number | null
+          jobid: number | null
+          jobname: string | null
+          return_message: string | null
+          runid: number | null
+          start_time: string | null
+          status: string | null
+          username: string | null
+        }
+        Relationships: []
+      }
+      cron_job_status: {
+        Row: {
+          active: boolean | null
+          command: string | null
+          database: string | null
+          jobid: number | null
+          jobname: string | null
+          nodename: string | null
+          nodeport: number | null
+          schedule: string | null
+          username: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          nodename?: string | null
+          nodeport?: number | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          nodename?: string | null
+          nodeport?: number | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
