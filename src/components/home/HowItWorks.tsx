@@ -1,4 +1,6 @@
-import { FileText, CheckCircle, Wallet, Hammer, CreditCard } from "lucide-react";
+import { FileText, CheckCircle, Wallet, Hammer, CreditCard, Play } from "lucide-react";
+import { useState, useRef } from "react";
+import howItWorksVideo from "@/assets/how-it-works-video.mp4";
 
 const steps = [
   {
@@ -34,10 +36,24 @@ const steps = [
 ];
 
 const HowItWorks = () => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handlePlayClick = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
   return (
     <section id="how-it-works" className="py-24 scroll-mt-20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div className="text-center max-w-3xl mx-auto mb-12">
           <span className="inline-block px-4 py-1.5 rounded-full bg-accent text-accent-foreground text-sm font-medium mb-4">
             Simple Process
           </span>
@@ -46,6 +62,38 @@ const HowItWorks = () => {
           </h2>
           <p className="text-lg text-muted-foreground">
             From application to completion, we've made home improvement financing straightforward and transparent.
+          </p>
+        </div>
+
+        {/* Video Section */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <div className="relative rounded-2xl overflow-hidden shadow-card bg-card">
+            <video
+              ref={videoRef}
+              className="w-full aspect-video object-cover"
+              poster=""
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+              controls={isPlaying}
+            >
+              <source src={howItWorksVideo} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+            
+            {!isPlaying && (
+              <button
+                onClick={handlePlayClick}
+                className="absolute inset-0 flex items-center justify-center bg-foreground/20 hover:bg-foreground/30 transition-colors group"
+              >
+                <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-button group-hover:scale-110 transition-transform">
+                  <Play className="w-8 h-8 text-primary-foreground ml-1" fill="currentColor" />
+                </div>
+              </button>
+            )}
+          </div>
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            Watch our 60-second explainer to see how easy it is to finance your home improvement project
           </p>
         </div>
 
