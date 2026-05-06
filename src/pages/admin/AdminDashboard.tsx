@@ -1,412 +1,256 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import {
-  DollarSign,
-  Users,
-  FileCheck,
-  CreditCard,
-  TrendingUp,
-  TrendingDown,
-  MapPin,
-} from "lucide-react";
+import { formatCurrency } from "@/lib/calculations";
+import { Loader2, ArrowRight, Pencil, Check, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-const COLORS = ["#0ea5a9", "#f59e0b", "#10b981", "#6366f1", "#ef4444"];
+const STATUS_DOT: Record<string, string> = {
+  pending:      "bg-yellow-400",
+  under_review: "bg-blue-400",
+  approved:     "bg-emerald-400",
+  rejected:     "bg-red-400",
+  funded:       "bg-[#0d9488]",
+  active:       "bg-[#0d9488]",
+  closed:       "bg-gray-300",
+};
+
+interface AppRow { id: string; user_id: string; status: string; loan_amount: number; project_type: string; created_at: string; borrowerName?: string; }
+interface Metrics { id: string; total_funded: number; total_collected: number; notes: string | null; }
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState({
-    totalApplications: 0,
-    totalFunded: 0,
-    pendingApprovals: 0,
-    activeCards: 0,
-  });
-  const [applications, setApplications] = useState<any[]>([]);
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [apps, setApps] = useState<AppRow[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [editingMetrics, setEditingMetrics] = useState(false);
+  const [editFunded, setEditFunded] = useState("");
+  const [editCollected, setEditCollected] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingMetrics, setSavingMetrics] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const loadDashboardData = async () => {
-    const { data: apps } = await supabase
-      .from("loan_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const fetchAll = async () => {
+    setLoading(true);
+    const [appsRes, profilesRes, metricsRes] = await Promise.all([
+      supabase.from("applications").select("id, user_id, status, loan_amount, project_type, created_at").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("user_id, first_name, last_name, email"),
+      supabase.from("admin_metrics").select("*").limit(1).maybeSingle(),
+    ]);
 
-    if (apps) {
-      setApplications(apps);
-      const funded = apps.filter((a) => a.status === "funds_released" || a.status === "completed");
-      const pending = apps.filter((a) => a.status === "submitted" || a.status === "document_sent");
-
-      setStats({
-        totalApplications: apps.length,
-        totalFunded: funded.reduce((sum, a) => sum + Number(a.requested_amount), 0),
-        pendingApprovals: pending.length,
-        activeCards: apps.filter((a) => a.status !== "draft" && a.status !== "rejected").length,
-      });
+    const profileMap: Record<string, string> = {};
+    for (const p of profilesRes.data || []) {
+      const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+      profileMap[p.user_id] = name || p.email || "";
     }
+
+    const appData = (appsRes.data || []).map(a => ({
+      ...a,
+      borrowerName: profileMap[a.user_id] || a.user_id.slice(0, 8) + "…",
+    })) as AppRow[];
+
+    setApps(appData);
+    setMetrics(metricsRes.data as Metrics || null);
+    setLoading(false);
   };
 
-  // Generate trend data
-  const trendData = [
-    { month: "Jan", applications: 12, funded: 180000 },
-    { month: "Feb", applications: 19, funded: 285000 },
-    { month: "Mar", applications: 15, funded: 225000 },
-    { month: "Apr", applications: 28, funded: 420000 },
-    { month: "May", applications: 35, funded: 525000 },
-    { month: "Jun", applications: 42, funded: 630000 },
+  const startEditMetrics = () => {
+    setEditFunded(String(metrics?.total_funded ?? 0));
+    setEditCollected(String(metrics?.total_collected ?? 0));
+    setEditNotes(metrics?.notes || "");
+    setEditingMetrics(true);
+  };
+
+  const saveMetrics = async () => {
+    setSavingMetrics(true);
+    try {
+      const funded = parseFloat(editFunded) || 0;
+      const collected = parseFloat(editCollected) || 0;
+      if (metrics?.id) {
+        const { error } = await supabase.from("admin_metrics").update({
+          total_funded: funded, total_collected: collected, notes: editNotes || null, updated_at: new Date().toISOString(),
+        }).eq("id", metrics.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("admin_metrics").insert({
+          total_funded: funded, total_collected: collected, notes: editNotes || null,
+        });
+        if (error) throw error;
+      }
+      toast({ title: "Metrics updated" });
+      setEditingMetrics(false);
+      fetchAll();
+    } catch {
+      toast({ title: "Failed to save", variant: "destructive" });
+    } finally { setSavingMetrics(false); }
+  };
+
+  const active = apps.filter(a => ["funded", "active"].includes(a.status));
+  const closed = apps.filter(a => a.status === "closed");
+  const pending = apps.filter(a => a.status === "pending").length;
+
+  // Auto-calculate funded amount from all disbursed loans (funded + active + closed)
+  const autoFunded = [...active, ...closed].reduce((sum, a) => sum + (a.loan_amount || 0), 0);
+
+  const pipeline = ["pending", "under_review", "approved", "funded", "rejected"].map(s => ({
+    label: s.replace(/_/g, " "), key: s,
+    count: apps.filter(a => a.status === s).length,
+  }));
+
+  const kpis = [
+    { label: "Total Applications", value: apps.length.toString() },
+    { label: "Active Loans",       value: active.length.toString() },
+    { label: "Closed Loans",       value: closed.length.toString() },
+    { label: "Amount Funded",      value: formatCurrency(autoFunded), highlight: true },
+    { label: "Collected",          value: formatCurrency(metrics?.total_collected ?? 0) },
+    { label: "Awaiting Review",    value: pending.toString(), urgent: pending > 0 },
   ];
 
-  // Location data
-  const locationData = [
-    { name: "California", value: 35 },
-    { name: "Texas", value: 25 },
-    { name: "Florida", value: 18 },
-    { name: "New York", value: 15 },
-    { name: "Other", value: 7 },
-  ];
-
-  // Project type data
-  const projectTypeData = [
-    { type: "Kitchen", count: 45 },
-    { type: "Bathroom", count: 32 },
-    { type: "Roof", count: 28 },
-    { type: "HVAC", count: 22 },
-    { type: "Windows", count: 18 },
-    { type: "Other", count: 15 },
-  ];
-
-  // Transaction data
-  const transactionData = [
-    { date: "Mon", materials: 45000, labor: 12000 },
-    { date: "Tue", materials: 32000, labor: 8000 },
-    { date: "Wed", materials: 28000, labor: 15000 },
-    { date: "Thu", materials: 55000, labor: 22000 },
-    { date: "Fri", materials: 48000, labor: 18000 },
-    { date: "Sat", materials: 15000, labor: 5000 },
-    { date: "Sun", materials: 8000, labor: 2000 },
-  ];
+  if (loading) return (
+    <div className="flex justify-center py-32">
+      <Loader2 className="w-6 h-6 animate-spin text-[#0d1f1e]" />
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back! Here's your overview.</p>
-      </div>
+    <div className="space-y-6 max-w-5xl">
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Applications
-            </CardTitle>
-            <Users className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalApplications}</div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3 h-3 text-green-500" />
-              <span className="text-green-500">+12%</span> from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Funded
-            </CardTitle>
-            <DollarSign className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${stats.totalFunded.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3 h-3 text-green-500" />
-              <span className="text-green-500">+8%</span> from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending Approvals
-            </CardTitle>
-            <FileCheck className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingApprovals}</div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <TrendingDown className="w-3 h-3 text-amber-500" />
-              <span className="text-amber-500">3</span> require attention
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Cards
-            </CardTitle>
-            <CreditCard className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeCards}</div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3 h-3 text-green-500" />
-              <span className="text-green-500">+5</span> new this week
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 1 */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Application Trends */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Application Trends
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="applications"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ fill: "hsl(var(--primary))" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Transactions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Weekly Transactions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={transactionData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => `$${value.toLocaleString()}`}
-                  />
-                  <Bar dataKey="materials" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="labor" fill="hsl(var(--warm))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-6 mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-primary" />
-                <span className="text-sm text-muted-foreground">Materials</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-warm" />
-                <span className="text-sm text-muted-foreground">Labor</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Locations */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              Top Locations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={locationData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {locationData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => `${value}%`}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {locationData.map((loc, idx) => (
-                <div key={loc.name} className="flex items-center gap-2 text-sm">
-                  <div
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                  />
-                  <span className="text-muted-foreground">{loc.name}</span>
-                  <span className="font-medium ml-auto">{loc.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Project Types */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Projects by Type</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={projectTypeData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-xs" />
-                  <YAxis dataKey="type" type="category" className="text-xs" width={80} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Applications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Applications</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Applicant
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Project
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Amount
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.slice(0, 5).map((app) => (
-                  <tr key={app.id} className="border-b border-border/50 hover:bg-muted/50">
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium">
-                          {app.first_name} {app.last_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{app.email}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm">{app.project_type}</td>
-                    <td className="py-3 px-4 font-medium">
-                      ${Number(app.requested_amount).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                          app.status === "funds_released" || app.status === "completed"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : app.status === "rejected"
-                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                        }`}
-                      >
-                        {app.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {new Date(app.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-                {applications.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No applications yet
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {kpis.map(k => (
+          <div key={k.label} className="bg-white rounded-2xl p-4 border border-gray-100">
+            <p className="text-xs text-gray-400 font-medium mb-1.5 leading-tight">{k.label}</p>
+            <p className={`text-xl font-black ${k.urgent ? "text-amber-500" : k.highlight ? "text-[#0d9488]" : "text-[#0d1f1e]"}`}>{k.value}</p>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr,300px] gap-6">
+
+        {/* Recent Applications */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+            <p className="font-semibold text-sm text-[#0d1f1e]">Recent Applications</p>
+            <Link to="/admin/approvals" className="flex items-center gap-1 text-xs text-[#0d9488] font-semibold hover:opacity-80">
+              View all <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-50">
+                {["Borrower","Amount","Project","Status","Date"].map(h => (
+                  <th key={h} className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {apps.slice(0, 8).map(a => (
+                <tr key={a.id} className="hover:bg-gray-50/60 transition-colors">
+                  <td className="px-5 py-3 font-medium text-[#0d1f1e]">{a.borrowerName}</td>
+                  <td className="px-5 py-3 font-semibold">{formatCurrency(a.loan_amount)}</td>
+                  <td className="px-5 py-3 capitalize text-gray-500">{a.project_type}</td>
+                  <td className="px-5 py-3">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[a.status] || "bg-gray-300"}`} />
+                      <span className="capitalize text-gray-600 text-xs">{a.status.replace(/_/g, " ")}</span>
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-gray-400 text-xs">{new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
+                </tr>
+              ))}
+              {apps.length === 0 && (
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-400 text-sm">No applications yet</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-4">
+
+          {/* Pipeline */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <p className="font-semibold text-sm text-[#0d1f1e] mb-4">Pipeline</p>
+            <div className="space-y-3">
+              {pipeline.map(p => {
+                const pct = apps.length > 0 ? (p.count / apps.length) * 100 : 0;
+                return (
+                  <div key={p.key}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="capitalize text-gray-500 font-medium">{p.label}</span>
+                      <span className="font-bold text-[#0d1f1e]">{p.count}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: ["funded","approved"].includes(p.key) ? "#0d9488" : p.key === "rejected" ? "#f87171" : "#0d1f1e" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Manual Metrics Tracker */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-semibold text-sm text-[#0d1f1e]">Funding Tracker</p>
+              {!editingMetrics ? (
+                <button onClick={startEditMetrics}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-[#0d1f1e] transition-colors font-medium">
+                  <Pencil className="w-3 h-3" />Update
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={saveMetrics} disabled={savingMetrics}
+                    className="flex items-center gap-1 text-xs text-emerald-600 hover:opacity-80 font-semibold">
+                    {savingMetrics ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}Save
+                  </button>
+                  <button onClick={() => setEditingMetrics(false)} className="text-gray-400 hover:text-[#0d1f1e]">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {!editingMetrics ? (
+              <div className="space-y-3">
+                <div className="rounded-xl p-3 bg-gray-50">
+                  <p className="text-xs text-gray-400 mb-1">Total Funded</p>
+                  <p className="text-xl font-black text-[#0d9488]">{formatCurrency(metrics?.total_funded ?? 0)}</p>
+                </div>
+                <div className="rounded-xl p-3 bg-gray-50">
+                  <p className="text-xs text-gray-400 mb-1">Total Collected</p>
+                  <p className="text-xl font-black text-[#0d1f1e]">{formatCurrency(metrics?.total_collected ?? 0)}</p>
+                </div>
+                {metrics?.notes && (
+                  <p className="text-xs text-gray-400 italic px-1">{metrics.notes}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">Total Funded ($)</label>
+                  <input type="number" value={editFunded} onChange={e => setEditFunded(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm text-[#0d1f1e] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0d9488]/30" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">Total Collected ($)</label>
+                  <input type="number" value={editCollected} onChange={e => setEditCollected(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm text-[#0d1f1e] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0d9488]/30" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-medium">Notes (optional)</label>
+                  <input type="text" value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                    placeholder="e.g. as of Apr 2026"
+                    className="mt-1 w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0d9488]/30" />
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 };

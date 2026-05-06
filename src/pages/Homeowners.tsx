@@ -1,241 +1,187 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { CheckCircle2, ArrowRight, Calculator, FileText, Shield, Clock } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import {
+  calculateMonthlyPayment,
+  calculateInterestOnlyPayment,
+  calculateTotalRepayment,
+  calculateOriginationFee,
+  calculateFinanceCharge,
+  getDisplayRate,
+  formatCurrency,
+} from "@/lib/calculations";
 
-const projectTypes = [
-  "Kitchen Renovation",
-  "Bathroom Remodel",
-  "Roof Replacement",
-  "HVAC System",
-  "Windows & Doors",
-  "Flooring",
-  "Outdoor Living",
-  "Other",
+const TERMS = [6, 12, 18, 24] as const;
+
+const rateTable = [
+  { term: "6 months",  rate: "10%",     total: "10% flat",      note: "Shortest, lowest cost" },
+  { term: "12 months", rate: "15%/yr",  total: "15% total",     note: "Most popular" },
+  { term: "18 months", rate: "18%/yr",  total: "27% total",     note: "Lower monthly payment" },
+  { term: "24 months", rate: "19%/yr",  total: "38% total",     note: "Lowest monthly payment" },
 ];
 
 const Homeowners = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [loanAmount, setLoanAmount] = useState([25000]);
-  const [loanTerm, setLoanTerm] = useState([36]);
-  const [selectedProject, setSelectedProject] = useState("");
+  const [amount, setAmount] = useState([15000]);
+  const [term, setTerm] = useState<6 | 12 | 18 | 24>(12);
 
-  const monthlyPayment = (loanAmount[0] / loanTerm[0]).toFixed(0);
+  const apply = () => navigate(user ? "/apply" : "/auth", { state: { from: { pathname: "/apply" } } });
 
-  const handleApplyClick = () => {
-    if (user) {
-      navigate("/apply");
-    } else {
-      navigate("/auth", { state: { from: { pathname: "/apply" } } });
-    }
-  };
+  const monthly = calculateMonthlyPayment(amount[0], term);
+  const interestOnly = calculateInterestOnlyPayment(amount[0], term);
+  const total = calculateTotalRepayment(amount[0], term);
+  const fee = calculateOriginationFee(amount[0]);
+  const interest = calculateFinanceCharge(amount[0], term);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: "#091918" }}>
       <Header />
-      <main className="pt-24">
-        {/* Hero */}
-        <section className="py-16 lg:py-24">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-              <div>
-                <span className="inline-block px-4 py-1.5 rounded-full bg-accent text-accent-foreground text-sm font-medium mb-6">
-                  For Homeowners
-                </span>
-                <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-6">
-                  Finance Your Dream{" "}
-                  <span className="gradient-text">Home Project</span>
-                </h1>
-                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                  Get pre-qualified in minutes without affecting your credit score. 
-                  Choose flexible payment terms that work for your budget.
-                </p>
-                <div className="space-y-4">
+
+      <main className="pt-28 pb-20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+
+          {/* Page header */}
+          <div className="text-center mb-12">
+            <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#0d9488] mb-5"
+              style={{ background: "rgba(13,148,136,0.1)", border: "1px solid rgba(13,148,136,0.2)" }}>
+              For Homeowners
+            </span>
+            <h1 className="font-bold text-white mb-4" style={{ fontSize: "clamp(2rem,4vw,3rem)" }}>
+              Know exactly what you'll pay.
+            </h1>
+            <p className="text-white/40 text-base max-w-lg mx-auto">
+              Flat-rate financing — one fee, fixed monthly payments, no surprises.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
+
+            {/* Calculator */}
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="p-6 space-y-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                {/* Amount */}
+                <div>
+                  <div className="flex justify-between items-end mb-3">
+                    <span className="text-white/40 text-sm">Loan Amount</span>
+                    <span className="text-2xl font-black text-white">{formatCurrency(amount[0])}</span>
+                  </div>
+                  <Slider value={amount} onValueChange={setAmount} min={5000} max={30000} step={500} />
+                  <div className="flex justify-between text-xs text-white/25 mt-2">
+                    <span>$5,000</span><span>$30,000</span>
+                  </div>
+                </div>
+
+                {/* Term */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-white/40 text-sm">Term</span>
+                    <span className="text-white/30 text-xs">{getDisplayRate(term)} annual rate</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {TERMS.map(t => (
+                      <button key={t} onClick={() => setTerm(t)}
+                        className="py-2.5 rounded-xl text-sm font-bold transition-all"
+                        style={{
+                          background: term === t ? "linear-gradient(135deg,#0d9488,#2dd4bf)" : "rgba(255,255,255,0.05)",
+                          color: term === t ? "#0d1f1e" : "rgba(255,255,255,0.4)",
+                          border: term === t ? "none" : "1px solid rgba(255,255,255,0.07)",
+                        }}>
+                        {t} mo
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Key numbers */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="rounded-xl p-4 text-center"
+                    style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.15)" }}>
+                    <p className="text-[#0d9488]/60 text-xs mb-1">P&amp;I Monthly</p>
+                    <p className="text-2xl font-black text-[#0d9488]">{formatCurrency(monthly)}</p>
+                  </div>
+                  <div className="rounded-xl p-4 text-center"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <p className="text-white/40 text-xs mb-1">Interest Only</p>
+                    <p className="text-2xl font-black text-white/60">{formatCurrency(interestOnly)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-5">
                   {[
-                    "Instant approval decisions",
-                    "No prepayment penalties",
-                    "0% APR promotional financing available",
-                    "Loan amounts from $1,000 to $100,000",
-                  ].map((feature, idx) => (
-                    <div key={idx} className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                      <span className="text-muted-foreground">{feature}</span>
+                    { l: "Rate", v: getDisplayRate(term) },
+                    { l: "Total Interest", v: formatCurrency(interest) },
+                    { l: "Origination Fee (2.5%)", v: formatCurrency(fee) },
+                    { l: "Total Repayment", v: formatCurrency(total) },
+                  ].map((r, i) => (
+                    <div key={i} className="flex justify-between text-sm py-1.5"
+                      style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                      <span className="text-white/30">{r.l}</span>
+                      <span className="text-white/65 font-semibold">{r.v}</span>
                     </div>
                   ))}
                 </div>
+
+                <button onClick={apply}
+                  className="w-full py-4 rounded-xl font-bold text-[#0d1f1e] flex items-center justify-center gap-2 group transition-all hover:brightness-110"
+                  style={{ background: "linear-gradient(135deg,#0d9488,#2dd4bf)" }}>
+                  Apply for This Loan
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+                <p className="text-center text-white/20 text-xs mt-3">No hard credit pull · 10 minutes</p>
+              </div>
+            </div>
+
+            {/* Right column: Rate table + basics */}
+            <div className="space-y-6">
+              {/* Rate table */}
+              <div className="rounded-2xl p-6"
+                style={{ background: "rgba(13,148,136,0.05)", border: "1px solid rgba(13,148,136,0.12)" }}>
+                <p className="text-[#0d9488] font-bold text-sm mb-4 uppercase tracking-widest">Rate Table</p>
+                <div className="space-y-0">
+                  {rateTable.map((r, i) => (
+                    <div key={i} className="flex items-center gap-4 py-3.5"
+                      style={{ borderBottom: i < rateTable.length - 1 ? "1px solid rgba(13,148,136,0.08)" : "none" }}>
+                      <div className="w-24 shrink-0 text-white font-semibold text-sm">{r.term}</div>
+                      <div className="px-2.5 py-0.5 rounded-lg text-xs font-black text-[#0d1f1e] shrink-0"
+                        style={{ background: "#0d9488" }}>{r.rate}</div>
+                      <div className="text-white/40 text-xs">{r.total} · {r.note}</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-white/20 text-xs mt-4">Annual add-on rates applied pro-rata over the loan term.</p>
               </div>
 
-              {/* Eligibility Checker */}
-              <div className="bg-card rounded-3xl p-8 shadow-card">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Calculator className="w-6 h-6 text-primary" />
+              {/* Quick facts */}
+              <div className="rounded-2xl p-6 space-y-4"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-white/60 font-bold text-sm uppercase tracking-widest">Basics</p>
+                {[
+                  ["Loan range", "$5,000 – $30,000"],
+                  ["Terms", "6, 12, 18, or 24 months"],
+                  ["Collateral", "None required"],
+                  ["Who qualifies", "Individuals & LLCs in NJ or NY"],
+                  ["Approval time", "Within 24 hours"],
+                  ["Funding", "Virtual card — use anywhere"],
+                ].map(([l, v]) => (
+                  <div key={l} className="flex justify-between text-sm">
+                    <span className="text-white/30">{l}</span>
+                    <span className="text-white/65 font-medium text-right max-w-[55%]">{v}</span>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-semibold">Payment Calculator</h2>
-                    <p className="text-sm text-muted-foreground">Estimate your monthly payment</p>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <Label>Loan Amount</Label>
-                      <span className="text-lg font-bold text-primary">${loanAmount[0].toLocaleString()}</span>
-                    </div>
-                    <Slider
-                      value={loanAmount}
-                      onValueChange={setLoanAmount}
-                      min={1000}
-                      max={100000}
-                      step={1000}
-                      className="py-2"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>$1,000</span>
-                      <span>$100,000</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <Label>Loan Term</Label>
-                      <span className="text-lg font-bold text-primary">{loanTerm[0]} months</span>
-                    </div>
-                    <Slider
-                      value={loanTerm}
-                      onValueChange={setLoanTerm}
-                      min={12}
-                      max={84}
-                      step={12}
-                      className="py-2"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>12 months</span>
-                      <span>84 months</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>Project Type</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {projectTypes.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setSelectedProject(type)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            selectedProject === type
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-accent rounded-xl p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Estimated Monthly Payment</p>
-                    <p className="text-3xl font-bold text-primary">${monthlyPayment}<span className="text-sm font-normal text-muted-foreground">/mo*</span></p>
-                    <p className="text-xs text-muted-foreground mt-2">*0% APR for qualified applicants. Actual rate may vary.</p>
-                  </div>
-
-                  <Button className="w-full" size="lg" onClick={handleApplyClick}>
-                    Check Your Rate
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                  <p className="text-xs text-center text-muted-foreground">
-                    Checking your rate won't affect your credit score
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
           </div>
-        </section>
-
-        {/* Features */}
-        <section className="py-16 bg-muted/50">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-12">
-              <h2 className="text-3xl font-bold mb-4">How to Get Started</h2>
-              <p className="text-muted-foreground">Simple steps to finance your home improvement project</p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-8">
-              {[
-                {
-                  icon: FileText,
-                  title: "1. Apply Online",
-                  description: "Fill out our simple application form in just 5 minutes. We'll ask about your project and financial situation.",
-                },
-                {
-                  icon: Clock,
-                  title: "2. Get Approved",
-                  description: "Receive an instant decision. Most applicants get approved within minutes with competitive rates.",
-                },
-                {
-                  icon: Shield,
-                  title: "3. Start Your Project",
-                  description: "Once approved, work with your contractor to begin. We release funds as work is completed.",
-                },
-              ].map((step, idx) => (
-                <div key={idx} className="bg-card rounded-2xl p-8 shadow-soft text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                    <step.icon className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                  <p className="text-muted-foreground">{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Application Form Preview */}
-        <section className="py-16">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl mx-auto bg-card rounded-3xl p-8 shadow-card">
-              <h2 className="text-2xl font-bold mb-6 text-center">Start Your Application</h2>
-              <form className="space-y-6">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" placeholder="John" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" placeholder="Smith" className="mt-1" />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" placeholder="john@example.com" className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" placeholder="(555) 123-4567" className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="zipCode">Zip Code</Label>
-                  <Input id="zipCode" placeholder="12345" className="mt-1" />
-                </div>
-                <Button className="w-full" size="lg" onClick={handleApplyClick}>
-                  Start Full Application
-                  <ArrowRight className="w-5 h-5" />
-                </Button>
-              </form>
-            </div>
-          </div>
-        </section>
+        </div>
       </main>
+
       <Footer />
     </div>
   );

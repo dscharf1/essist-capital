@@ -51,6 +51,18 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Essist Capital brand accents
+        navy: {
+          DEFAULT: "#0a1628",
+          light: "#162544",
+          foreground: "#ffffff",
+        },
+        gold: {
+          DEFAULT: "#c9a84c",
+          light: "#dfc278",
+          dark: "#a8893c",
+          foreground: "#0a1628",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

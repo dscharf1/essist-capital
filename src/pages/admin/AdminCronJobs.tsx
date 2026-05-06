@@ -1,321 +1,174 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Play, CheckCircle, XCircle, AlertCircle, RefreshCw, Timer, Calendar } from "lucide-react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, Play, RefreshCw, Loader2 } from "lucide-react";
 
-interface CronJob {
-  jobid: number;
-  jobname: string;
+interface CronJobDef {
+  key: string;
+  label: string;
+  description: string;
   schedule: string;
-  command: string;
-  active: boolean;
+  edgeFn: string;
+  payload: Record<string, string>;
 }
 
-interface CronJobRun {
-  runid: number;
-  jobid: number;
-  jobname: string;
-  status: string;
-  return_message: string;
-  start_time: string;
-  end_time: string;
-}
+const JOBS: CronJobDef[] = [
+  {
+    key: "payment_reminder_7day",
+    label: "7-Day Payment Reminder",
+    description: "Emails borrowers 7 days before payment is due",
+    schedule: "0 9 * * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "7day" },
+  },
+  {
+    key: "payment_reminder_3day",
+    label: "3-Day Payment Reminder",
+    description: "Emails borrowers 3 days before payment is due",
+    schedule: "0 9 * * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "3day" },
+  },
+  {
+    key: "payment_reminder_24hr",
+    label: "24-Hour Payment Reminder",
+    description: "Emails borrowers 24 hours before payment is due",
+    schedule: "0 9 * * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "24hr" },
+  },
+  {
+    key: "payment_due_today",
+    label: "Payment Due Today",
+    description: "Emails borrowers on the day their payment is due",
+    schedule: "0 8 * * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "due_today" },
+  },
+  {
+    key: "late_payment_flag",
+    label: "Late Payment Flag",
+    description: "Marks overdue payments as missed and notifies borrowers",
+    schedule: "0 10 * * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "missed" },
+  },
+  {
+    key: "monthly_statement",
+    label: "Monthly Statement",
+    description: "Sends monthly payment summary to all active borrowers",
+    schedule: "0 9 1 * *",
+    edgeFn: "payment_reminders",
+    payload: { type: "monthly_statement" },
+  },
+];
 
-export default function AdminCronJobs() {
-  const [refreshing, setRefreshing] = useState(false);
+const formatSchedule = (cron: string) => {
+  const map: Record<string, string> = {
+    "0 9 * * *": "Daily at 9:00 AM UTC",
+    "0 8 * * *": "Daily at 8:00 AM UTC",
+    "0 10 * * *": "Daily at 10:00 AM UTC",
+    "0 9 1 * *": "1st of each month, 9:00 AM UTC",
+  };
+  return map[cron] || cron;
+};
 
-  const { data: jobs, isLoading: jobsLoading, refetch: refetchJobs } = useQuery({
-    queryKey: ["cron-jobs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("cron_job_status")
-        .select("*");
+const AdminCronJobs = () => {
+  const { toast } = useToast();
+  const [running, setRunning] = useState<string | null>(null);
+  const [lastRun, setLastRun] = useState<Record<string, string>>({});
+
+  const triggerJob = async (job: CronJobDef) => {
+    setRunning(job.key);
+    try {
+      const { error } = await supabase.functions.invoke(job.edgeFn, { body: job.payload });
       if (error) throw error;
-      return data as CronJob[];
-    },
-  });
-
-  const { data: history, isLoading: historyLoading, refetch: refetchHistory } = useQuery({
-    queryKey: ["cron-job-history"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("cron_job_history")
-        .select("*")
-        .order("start_time", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data as CronJobRun[];
-    },
-  });
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([refetchJobs(), refetchHistory()]);
-    setRefreshing(false);
-    toast.success("Data refreshed");
-  };
-
-  const handleManualTrigger = async (jobName: string) => {
-    let functionName = "";
-    let body = {};
-
-    if (jobName.includes("reminders")) {
-      functionName = "send-payment-reminders";
-    } else if (jobName.includes("processing")) {
-      functionName = "process-payment";
-      body = { action: "process_scheduled_payments" };
-    } else if (jobName.includes("missed")) {
-      functionName = "check-missed-payments";
-    }
-
-    if (!functionName) {
-      toast.error("Unknown job type");
-      return;
-    }
-
-    toast.loading(`Triggering ${functionName}...`);
-    
-    const { data, error } = await supabase.functions.invoke(functionName, { body });
-    
-    toast.dismiss();
-    
-    if (error) {
-      toast.error(`Failed: ${error.message}`);
-    } else {
-      toast.success(`${functionName} executed successfully`);
-      refetchHistory();
+      const now = new Date().toLocaleString("en-US", {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+      setLastRun(prev => ({ ...prev, [job.key]: now }));
+      toast({ title: `${job.label} triggered successfully` });
+    } catch (err: unknown) {
+      toast({
+        title: `Failed to trigger ${job.label}`,
+        description: (err as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setRunning(null);
     }
   };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "succeeded":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "running":
-        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "succeeded":
-        return <Badge className="bg-green-100 text-green-800">Succeeded</Badge>;
-      case "failed":
-        return <Badge variant="destructive">Failed</Badge>;
-      case "running":
-        return <Badge className="bg-blue-100 text-blue-800">Running</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const formatSchedule = (schedule: string) => {
-    const scheduleMap: Record<string, string> = {
-      "0 9 * * *": "Daily at 9:00 AM UTC",
-      "0 10 * * *": "Daily at 10:00 AM UTC",
-      "0 11 * * *": "Daily at 11:00 AM UTC",
-    };
-    return scheduleMap[schedule] || schedule;
-  };
-
-  const formatDuration = (start: string, end: string) => {
-    if (!start || !end) return "-";
-    const duration = new Date(end).getTime() - new Date(start).getTime();
-    if (duration < 1000) return `${duration}ms`;
-    return `${(duration / 1000).toFixed(1)}s`;
-  };
-
-  const paymentJobs = jobs?.filter(j => 
-    j.jobname?.includes("payment") || j.jobname?.includes("reminder") || j.jobname?.includes("missed")
-  ) || [];
-
-  const successCount = history?.filter(h => h.status === "succeeded").length || 0;
-  const failedCount = history?.filter(h => h.status === "failed").length || 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Cron Job Monitor</h1>
-          <p className="text-muted-foreground">View scheduled jobs and execution history</p>
-          </div>
-          <Button onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{paymentJobs.filter(j => j.active).length}</div>
-              <p className="text-xs text-muted-foreground">Payment-related cron jobs</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Recent Runs</CardTitle>
-              <Timer className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{history?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Total executions logged</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Successful</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{successCount}</div>
-              <p className="text-xs text-muted-foreground">Completed successfully</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Failed</CardTitle>
-              <XCircle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{failedCount}</div>
-              <p className="text-xs text-muted-foreground">Execution failures</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs defaultValue="jobs" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="jobs">Scheduled Jobs</TabsTrigger>
-            <TabsTrigger value="history">Execution History</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="jobs">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Cron Jobs</CardTitle>
-                <CardDescription>Automated payment processing schedules</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {jobsLoading ? (
-                  <p className="text-muted-foreground">Loading jobs...</p>
-                ) : paymentJobs.length === 0 ? (
-                  <p className="text-muted-foreground">No payment cron jobs found. Jobs will appear after first execution.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Job Name</TableHead>
-                        <TableHead>Schedule</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paymentJobs.map((job) => (
-                        <TableRow key={job.jobid}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              {job.jobname}
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatSchedule(job.schedule)}</TableCell>
-                          <TableCell>
-                            <Badge variant={job.active ? "default" : "secondary"}>
-                              {job.active ? "Active" : "Paused"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleManualTrigger(job.jobname)}
-                            >
-                              <Play className="h-3 w-3 mr-1" />
-                              Run Now
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <CardTitle>Execution History</CardTitle>
-                <CardDescription>Recent cron job runs and their results</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {historyLoading ? (
-                  <p className="text-muted-foreground">Loading history...</p>
-                ) : !history || history.length === 0 ? (
-                  <p className="text-muted-foreground">No execution history yet. Jobs will be logged after they run.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Job</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Started</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead>Message</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {history.map((run) => (
-                        <TableRow key={run.runid}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(run.status)}
-                              {run.jobname || `Job #${run.jobid}`}
-                            </div>
-                          </TableCell>
-                          <TableCell>{getStatusBadge(run.status)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {run.start_time 
-                              ? new Date(run.start_time).toLocaleString()
-                              : "-"
-                            }
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {formatDuration(run.start_time, run.end_time)}
-                          </TableCell>
-                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                            {run.return_message || "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold">Scheduled Jobs</h1>
+        <p className="text-sm text-muted-foreground">
+          Payment reminder and statement jobs — scheduled via Supabase pg_cron
+        </p>
       </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>{["Job", "Description", "Schedule", "Status", "Last Manual Run", "Actions"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left font-semibold text-muted-foreground">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="divide-y">
+                {JOBS.map(job => (
+                  <tr key={job.key} className="hover:bg-muted/40">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        {job.label}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground max-w-[220px]">{job.description}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      <div>{formatSchedule(job.schedule)}</div>
+                      <div className="text-[10px] mt-0.5 opacity-60">{job.schedule}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className="bg-green-100 text-green-800">
+                        <RefreshCw className="w-3 h-3 mr-1" />Active
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {lastRun[job.key] || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => triggerJob(job)}
+                        disabled={running === job.key}
+                      >
+                        {running === job.key
+                          ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          : <Play className="w-3 h-3 mr-1" />}
+                        Run Now
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="text-xs text-muted-foreground bg-muted rounded-lg px-4 py-3">
+        <strong>Note:</strong> These jobs run automatically on schedule via Supabase pg_cron. Use "Run Now" to trigger a job
+        manually for testing. Schedule changes must be made directly in the Supabase dashboard under Database → Cron Jobs.
+      </div>
+    </div>
   );
-}
+};
+
+export default AdminCronJobs;

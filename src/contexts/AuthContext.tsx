@@ -131,18 +131,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     password: string,
     metadata?: { first_name?: string; last_name?: string }
   ) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
+    // Sign up then immediately sign in — no email confirmation required
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: metadata
-      }
+      options: { data: metadata }
     });
+    if (signUpError) return { error: signUpError as Error };
 
-    return { error: error as Error | null };
+    // Auto sign-in after signup
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: signInError as Error | null };
   };
 
   const signIn = async (email: string, password: string) => {

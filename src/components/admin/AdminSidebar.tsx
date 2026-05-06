@@ -1,132 +1,91 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import {
-  LayoutDashboard,
-  Users,
-  FileCheck,
-  FolderOpen,
-  CreditCard,
-  DollarSign,
-  Bell,
-  Settings,
-  LogOut,
-  Building2,
-  Clock,
+  LayoutDashboard, Users, FileCheck,
+  Shield, MessageSquare, Bell, LogOut, X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { LogoIcon } from "@/components/Logo";
+import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Clients", url: "/admin/clients", icon: Users },
-  { title: "Approvals", url: "/admin/approvals", icon: FileCheck },
-  { title: "Documents", url: "/admin/documents", icon: FolderOpen },
-  { title: "Cards", url: "/admin/cards", icon: CreditCard },
-  { title: "Payments", url: "/admin/payments", icon: DollarSign },
-  { title: "Cron Jobs", url: "/admin/cron-jobs", icon: Clock },
-  { title: "Notifications", url: "/admin/notifications", icon: Bell },
+const nav = [
+  { label: "Dashboard",     href: "/admin",                 icon: LayoutDashboard, exact: true },
+  { label: "Applications",  href: "/admin/approvals",        icon: FileCheck },
+  { label: "Clients",       href: "/admin/clients",          icon: Users },
+  { label: "Audit Log",     href: "/admin/audit-log",        icon: Shield },
 ];
 
-const AdminSidebar = () => {
-  const location = useLocation();
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+const secondary = [
+  { label: "Messages",      href: "/admin/contact-messages", icon: MessageSquare },
+  { label: "Notifications", href: "/admin/notifications",    icon: Bell },
+];
 
-  const isActive = (path: string) => {
-    if (path === "/admin") {
-      return location.pathname === "/admin";
-    }
-    return location.pathname.startsWith(path);
+interface Props { onClose?: () => void; }
+
+const AdminSidebar = ({ onClose }: Props) => {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+
+  const handleExit = async () => { await signOut(); navigate("/"); };
+
+  const link = (item: { label: string; href: string; icon: React.ElementType; exact?: boolean }) => {
+    const Icon = item.icon;
+    return (
+      <NavLink
+        key={item.href}
+        to={item.href}
+        end={item.exact}
+        onClick={onClose}
+        className={({ isActive }) =>
+          `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+            isActive
+              ? "bg-[#0d9488]/15 text-[#0d9488]"
+              : "text-white/45 hover:text-white/80 hover:bg-white/6"
+          }`
+        }
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {item.label}
+      </NavLink>
+    );
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <Building2 className="w-5 h-5 text-primary-foreground" />
+    <div className="flex flex-col h-full" style={{ background: "#0d1f1e" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex items-center gap-2.5">
+          <LogoIcon size={28} />
+          <div>
+            <p className="text-white text-sm font-bold leading-none">Essist</p>
+            <p className="text-[#0d9488] text-[10px] font-semibold tracking-widest uppercase leading-none mt-0.5">Admin</p>
           </div>
-          {!collapsed && (
-            <div>
-              <h2 className="font-bold text-lg">Admin Portal</h2>
-              <p className="text-xs text-muted-foreground">Management Console</p>
-            </div>
-          )}
         </div>
-      </SidebarHeader>
+        {onClose && (
+          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                  >
-                    <NavLink
-                      to={item.url}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                        isActive(item.url)
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      <item.icon className="w-5 h-5 shrink-0" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      {/* Main nav */}
+      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+        {nav.map(link)}
 
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Settings">
-                  <NavLink
-                    to="/admin/settings"
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted transition-colors"
-                  >
-                    <Settings className="w-5 h-5 shrink-0" />
-                    <span>Settings</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        <div className="pt-4 mt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          {secondary.map(link)}
+        </div>
+      </nav>
 
-      <SidebarFooter className="p-4 border-t border-border">
-        <NavLink
-          to="/"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+      {/* Footer */}
+      <div className="px-3 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <button
+          onClick={handleExit}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-white/30 hover:text-red-400 hover:bg-red-500/8 transition-all duration-150"
         >
-          <LogOut className="w-5 h-5 shrink-0" />
-          {!collapsed && <span>Exit Admin</span>}
-        </NavLink>
-      </SidebarFooter>
-    </Sidebar>
+          <LogOut className="w-4 h-4 shrink-0" />
+          Exit Admin
+        </button>
+      </div>
+    </div>
   );
 };
 

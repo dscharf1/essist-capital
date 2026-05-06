@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import Logo from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,202 +11,216 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, X, Home, Users, Wrench, Info, Phone, BookOpen, Shield, User, LogOut, LayoutDashboard } from "lucide-react";
+import { Menu, X, Shield, LogOut, LayoutDashboard, User, ChevronDown } from "lucide-react";
 
 const navigation = [
-  { name: "Home", href: "/", icon: Home },
-  { name: "For Homeowners", href: "/homeowners", icon: Users },
-  { name: "For Contractors", href: "/contractors", icon: Wrench },
-  { name: "About", href: "/about", icon: Info },
-  { name: "Resources", href: "/resources", icon: BookOpen },
-  { name: "Contact", href: "/contact", icon: Phone },
+  { name: "About", href: "/about" },
+  { name: "Contact", href: "/contact" },
 ];
 
 const Header = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, isAdmin, signOut, isLoading } = useAuth();
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const handleSignOut = async () => { await signOut(); navigate("/"); };
+
+  const initials = () => {
+    if (profile?.first_name && profile?.last_name)
+      return `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase();
+    return user?.email?.[0]?.toUpperCase() || "U";
   };
 
-  const getInitials = () => {
-    if (profile?.first_name && profile?.last_name) {
-      return `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase();
-    }
-    if (user?.email) {
-      return user.email[0].toUpperCase();
-    }
-    return 'U';
-  };
+  const isActive = (href: string) =>
+    href === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(href.replace("/#", "/").split("#")[0]) && href !== "/#how-it-works";
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
+    <header
+      className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+      style={{
+        background: scrolled
+          ? "rgba(5,13,26,0.96)"
+          : "rgba(5,13,26,0.7)",
+        backdropFilter: "blur(20px)",
+        borderBottom: scrolled
+          ? "1px solid rgba(13,148,136,0.12)"
+          : "1px solid rgba(255,255,255,0.05)",
+        boxShadow: scrolled ? "0 4px 30px rgba(0,0,0,0.3)" : "none",
+      }}
+    >
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-button group-hover:shadow-glow transition-all duration-300">
-              <Home className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">
-              Home<span className="text-primary">Fund</span>
-            </span>
+          <Link to="/" className="flex items-center shrink-0">
+            <Logo size="sm" light={true} />
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex lg:items-center lg:gap-1">
+          {/* Desktop Nav */}
+          <div className="hidden lg:flex items-center gap-1">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  location.pathname === item.href
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                className="px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+                style={{
+                  color: isActive(item.href)
+                    ? "rgba(255,255,255,1)"
+                    : "rgba(255,255,255,0.55)",
+                }}
+                onMouseEnter={(e) =>
+                  ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.9)")
+                }
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLAnchorElement).style.color = isActive(item.href)
+                    ? "rgba(255,255,255,1)"
+                    : "rgba(255,255,255,0.55)")
+                }
               >
                 {item.name}
               </Link>
             ))}
           </div>
 
-          {/* CTA Buttons / User Menu */}
-          <div className="hidden lg:flex lg:items-center lg:gap-3">
+          {/* Right side */}
+          <div className="hidden lg:flex items-center gap-3">
             {!isLoading && user ? (
               <>
                 {isAdmin && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/admin" className="flex items-center gap-1.5">
-                      <Shield className="w-4 h-4" />
-                      Admin
-                    </Link>
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/dashboard" className="flex items-center gap-1.5">
-                    <LayoutDashboard className="w-4 h-4" />
-                    Dashboard
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-white/50 hover:text-white/90 hover:bg-white/6 transition-all"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    Admin
                   </Link>
-                </Button>
+                )}
+                <Link
+                  to="/dashboard"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-white/50 hover:text-white/90 hover:bg-white/6 transition-all"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  Dashboard
+                </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || 'User'} />
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          {getInitials()}
+                    <button className="flex items-center gap-2 hover:bg-white/6 rounded-xl px-2 py-1.5 transition-all">
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={profile?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-[#0d9488] text-[#0d1f1e] text-xs font-bold">
+                          {initials()}
                         </AvatarFallback>
                       </Avatar>
-                    </Button>
+                      <ChevronDown className="w-3 h-3 text-white/30" />
+                    </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <div className="flex flex-col space-y-1 p-2">
-                      <p className="text-sm font-medium leading-none">
-                        {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : 'User'}
+                  <DropdownMenuContent className="w-52" align="end">
+                    <div className="px-2 py-2">
+                      <p className="text-sm font-semibold">
+                        {profile?.first_name
+                          ? `${profile.first_name} ${profile.last_name || ""}`
+                          : "My Account"}
                       </p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
-                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/dashboard" className="cursor-pointer">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Dashboard
-                      </Link>
+                      <Link to="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/apply" className="cursor-pointer">
-                        <User className="mr-2 h-4 w-4" />
-                        New Application
-                      </Link>
+                      <Link to="/apply"><User className="mr-2 h-4 w-4" />New Application</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Sign Out
+                    <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             ) : (
               <>
-                <Button variant="ghost" asChild>
-                  <Link to="/auth">Log In</Link>
-                </Button>
-                <Button asChild>
-                  <Link to="/homeowners">Apply Now</Link>
-                </Button>
+                <Link
+                  to="/auth"
+                  className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white transition-colors"
+                >
+                  Log In
+                </Link>
+                <Link
+                  to="/apply"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#0d1f1e] transition-all duration-200"
+                  style={{
+                    background: "linear-gradient(135deg, #0d9488, #2dd4bf)",
+                    boxShadow: "0 0 20px rgba(13,148,136,0.3)",
+                  }}
+                >
+                  Apply Now
+                </Link>
               </>
             )}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile toggle */}
           <button
-            type="button"
-            className="lg:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/8 transition-colors"
+            onClick={() => setMobileOpen((o) => !o)}
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border/50 animate-fade-in">
-            <div className="flex flex-col gap-1">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    location.pathname === item.href
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
-                </Link>
-              ))}
-              <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border/50">
-                {!isLoading && user ? (
-                  <>
-                    <Button variant="outline" asChild className="w-full">
-                      <Link to="/dashboard" className="flex items-center justify-center gap-2">
-                        <LayoutDashboard className="w-4 h-4" />
-                        Dashboard
-                      </Link>
-                    </Button>
-                    {isAdmin && (
-                      <Button variant="outline" asChild className="w-full">
-                        <Link to="/admin" className="flex items-center justify-center gap-2">
-                          <Shield className="w-4 h-4" />
-                          Admin Portal
-                        </Link>
-                      </Button>
-                    )}
-                    <Button variant="destructive" onClick={handleSignOut} className="w-full">
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Sign Out
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" asChild className="w-full">
-                      <Link to="/auth">Log In</Link>
-                    </Button>
-                    <Button asChild className="w-full">
-                      <Link to="/homeowners">Apply Now</Link>
-                    </Button>
-                  </>
-                )}
-              </div>
+        {/* Mobile menu */}
+        {mobileOpen && (
+          <div className="lg:hidden py-4 border-t border-white/8 space-y-1">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/6 transition-all"
+              >
+                {item.name}
+              </Link>
+            ))}
+            <div className="pt-3 mt-3 border-t border-white/8 space-y-2">
+              {!isLoading && user ? (
+                <>
+                  <Link to="/dashboard" onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/6 transition-all">
+                    <LayoutDashboard className="w-4 h-4" /> Dashboard
+                  </Link>
+                  {isAdmin && (
+                    <Link to="/admin" onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/6 transition-all">
+                      <Shield className="w-4 h-4" /> Admin
+                    </Link>
+                  )}
+                  <button onClick={handleSignOut}
+                    className="flex items-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/8 transition-all">
+                    <LogOut className="w-4 h-4" /> Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link to="/auth" onClick={() => setMobileOpen(false)}
+                    className="block w-full text-center px-4 py-3 rounded-xl text-sm font-medium border border-white/15 text-white/70 hover:bg-white/6 transition-all">
+                    Log In
+                  </Link>
+                  <Link to="/apply" onClick={() => setMobileOpen(false)}
+                    className="block w-full text-center px-4 py-3 rounded-xl text-sm font-bold text-[#0d1f1e] transition-all"
+                    style={{ background: "linear-gradient(135deg, #0d9488, #2dd4bf)" }}>
+                    Apply Now
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}

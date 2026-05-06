@@ -1,452 +1,311 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Search,
-  Filter,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  MapPin,
-  Eye,
-  Plus,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatCurrency } from "@/lib/calculations";
+import { Search, Download, Loader2, Users, X, CreditCard, FileText, Phone, Mail } from "lucide-react";
 
-const projectTypes = [
-  "Kitchen Remodel",
-  "Bathroom Remodel",
-  "Roof Replacement",
-  "HVAC Installation",
-  "Window Replacement",
-  "Flooring",
-  "Siding",
-  "Solar Installation",
-  "Other",
-];
+interface ClientRow {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  borrower_type: string | null;
+  loan_count: number;
+  total_funded: number;
+  latest_status: string | null;
+  applications: AppRow[];
+  card: CardRow | null;
+}
+
+interface AppRow {
+  id: string;
+  loan_amount: number;
+  term_months: number;
+  status: string;
+  project_type: string;
+  property_city: string;
+  property_state: string;
+  created_at: string;
+}
+
+interface CardRow {
+  id: string;
+  card_last_four: string;
+  credit_limit: number;
+  available_balance: number;
+  drawn_amount: number;
+  card_status: string;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-yellow-100 text-yellow-800",
+  under_review: "bg-blue-100 text-blue-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+  funded: "bg-primary/10 text-primary",
+  active: "bg-primary/10 text-primary",
+  closed: "bg-muted text-muted-foreground",
+};
+
+const exportCSV = (data: ClientRow[]) => {
+  const headers = ["Name","Email","Phone","Borrower Type","Loan Count","Total Funded","Status"];
+  const rows = data.map(c => [
+    `${c.first_name||""} ${c.last_name||""}`.trim(),
+    c.email||"", c.phone||"", c.borrower_type||"individual", c.loan_count, c.total_funded, c.latest_status||"",
+  ]);
+  const csv = [headers,...rows].map(r=>r.map(v=>`"${v}"`).join(",")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download = "clients.csv"; a.click();
+};
 
 const AdminClients = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [clients, setClients] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [clients, setClients] = useState<ClientRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [selected, setSelected] = useState<ClientRow | null>(null);
 
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    zip_code: "",
-    project_type: "",
-    project_description: "",
-    requested_amount: "",
-  });
+  useEffect(() => { fetchClients(); }, []);
 
-  useEffect(() => {
-    loadClients();
-  }, []);
-
-  const loadClients = async () => {
+  const fetchClients = async () => {
     setIsLoading(true);
-    const { data } = await supabase
-      .from("loan_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
 
-    if (data) {
-      const uniqueClients = data.reduce((acc: any[], curr) => {
-        const existing = acc.find((c) => c.email === curr.email);
-        if (!existing) {
-          acc.push({
-            ...curr,
-            applicationCount: data.filter((d) => d.email === curr.email).length,
-            totalAmount: data
-              .filter((d) => d.email === curr.email)
-              .reduce((sum, d) => sum + Number(d.requested_amount), 0),
-          });
-        }
-        return acc;
-      }, []);
-      setClients(uniqueClients);
+    const [profilesRes, appsRes, cardsRes] = await Promise.all([
+      supabase.from("profiles").select("user_id, first_name, last_name, email, phone, borrower_type"),
+      supabase.from("applications").select("id, user_id, loan_amount, term_months, status, project_type, property_city, property_state, created_at").order("created_at", { ascending: false }),
+      supabase.from("virtual_cards").select("id, user_id, card_last_four, credit_limit, available_balance, drawn_amount, card_status"),
+    ]);
+
+    const cardMap: Record<string, CardRow> = {};
+    for (const c of cardsRes.data || []) cardMap[c.user_id] = c as CardRow;
+
+    const appsByUser: Record<string, AppRow[]> = {};
+    for (const a of appsRes.data || []) {
+      if (!appsByUser[a.user_id]) appsByUser[a.user_id] = [];
+      appsByUser[a.user_id].push(a as AppRow);
     }
+
+    const clientMap: Record<string, ClientRow> = {};
+    for (const p of profilesRes.data || []) {
+      clientMap[p.user_id] = {
+        user_id: p.user_id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
+        phone: p.phone,
+        borrower_type: p.borrower_type,
+        loan_count: 0,
+        total_funded: 0,
+        latest_status: null,
+        applications: appsByUser[p.user_id] || [],
+        card: cardMap[p.user_id] || null,
+      };
+    }
+
+    // Also include applicants who have no profile row (trigger may have failed)
+    for (const a of appsRes.data || []) {
+      if (!clientMap[a.user_id]) {
+        clientMap[a.user_id] = {
+          user_id: a.user_id,
+          first_name: null,
+          last_name: null,
+          email: null,
+          phone: null,
+          borrower_type: null,
+          loan_count: 0,
+          total_funded: 0,
+          latest_status: null,
+          applications: appsByUser[a.user_id] || [],
+          card: cardMap[a.user_id] || null,
+        };
+      }
+    }
+
+    for (const a of appsRes.data || []) {
+      if (!clientMap[a.user_id]) continue;
+      clientMap[a.user_id].loan_count++;
+      if (["funded","active"].includes(a.status)) clientMap[a.user_id].total_funded += Number(a.loan_amount);
+      clientMap[a.user_id].latest_status = a.status;
+    }
+
+    setClients(Object.values(clientMap));
     setIsLoading(false);
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.first_name || !formData.last_name || !formData.email || !formData.project_type || !formData.requested_amount) {
-      toast({
-        title: "Missing required fields",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    const { error } = await supabase.from("loan_applications").insert({
-      first_name: formData.first_name.trim(),
-      last_name: formData.last_name.trim(),
-      email: formData.email.trim().toLowerCase(),
-      phone: formData.phone.trim() || null,
-      address: formData.address.trim() || null,
-      city: formData.city.trim() || null,
-      state: formData.state.trim() || null,
-      zip_code: formData.zip_code.trim() || null,
-      project_type: formData.project_type,
-      project_description: formData.project_description.trim() || null,
-      requested_amount: parseFloat(formData.requested_amount),
-      status: "submitted",
-    });
-
-    setIsSubmitting(false);
-
-    if (error) {
-      toast({
-        title: "Error creating client",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Client added successfully",
-        description: `${formData.first_name} ${formData.last_name} has been added to the system.`,
-      });
-      setIsDialogOpen(false);
-      setFormData({
-        first_name: "",
-        last_name: "",
-        email: "",
-        phone: "",
-        address: "",
-        city: "",
-        state: "",
-        zip_code: "",
-        project_type: "",
-        project_description: "",
-        requested_amount: "",
-      });
-      loadClients();
-    }
-  };
-
-  const filteredClients = clients.filter(
-    (client) =>
-      client.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "funds_released":
-      case "completed":
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
-      case "rejected":
-        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-      default:
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
-    }
-  };
+  const filtered = clients.filter(c => {
+    const name = `${c.first_name||""} ${c.last_name||""} ${c.email||""}`.toLowerCase();
+    return (!search || name.includes(search.toLowerCase())) &&
+      (typeFilter === "all" || c.borrower_type === typeFilter);
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5 max-w-6xl">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Clients</h1>
-          <p className="text-muted-foreground">Manage your client database</p>
+          <h1 className="text-xl font-bold text-[#0d1f1e]">Clients</h1>
+          <p className="text-xs text-gray-400 mt-0.5">{filtered.length} borrowers · click to view details</p>
         </div>
-        <div className="flex gap-2">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Client
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Client</DialogTitle>
-                <DialogDescription>
-                  Manually add a new client and their loan application to the system.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name">First Name *</Label>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={(e) => handleInputChange("first_name", e.target.value)}
-                      placeholder="John"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">Last Name *</Label>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={(e) => handleInputChange("last_name", e.target.value)}
-                      placeholder="Doe"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange("address", e.target.value)}
-                    placeholder="123 Main St"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      value={formData.city}
-                      onChange={(e) => handleInputChange("city", e.target.value)}
-                      placeholder="Austin"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      value={formData.state}
-                      onChange={(e) => handleInputChange("state", e.target.value)}
-                      placeholder="TX"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="zip_code">ZIP Code</Label>
-                    <Input
-                      id="zip_code"
-                      value={formData.zip_code}
-                      onChange={(e) => handleInputChange("zip_code", e.target.value)}
-                      placeholder="78701"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="project_type">Project Type *</Label>
-                    <Select
-                      value={formData.project_type}
-                      onValueChange={(value) => handleInputChange("project_type", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select project type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projectTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="requested_amount">Requested Amount *</Label>
-                    <Input
-                      id="requested_amount"
-                      type="number"
-                      value={formData.requested_amount}
-                      onChange={(e) => handleInputChange("requested_amount", e.target.value)}
-                      placeholder="25000"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="project_description">Project Description</Label>
-                  <Textarea
-                    id="project_description"
-                    value={formData.project_description}
-                    onChange={(e) => handleInputChange("project_description", e.target.value)}
-                    placeholder="Describe the project details..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting ? "Adding..." : "Add Client"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Button variant="outline">
-            <Filter className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
+          <Download className="w-4 h-4 mr-1.5" />Export
+        </Button>
       </div>
 
-      {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search clients by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+      <div className="flex gap-3 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+          <Input className="pl-9 w-60 bg-white border-gray-200" placeholder="Search name or email..." value={search} onChange={e=>setSearch(e.target.value)} />
+        </div>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-40 bg-white border-gray-200"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="individual">Individual</SelectItem>
+            <SelectItem value="llc">LLC / Business</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        {isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-[#0d1f1e]" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 text-sm">
+            <Users className="w-8 h-8 mx-auto mb-3 opacity-30" />No clients found
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Client Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredClients.map((client) => (
-          <Card key={client.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-primary">
-                      {client.first_name?.[0]}
-                      {client.last_name?.[0]}
-                    </span>
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">
-                      {client.first_name} {client.last_name}
-                    </CardTitle>
-                    <Badge variant="secondary" className={getStatusColor(client.status)}>
-                      {client.status?.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => navigate(`/application/${client.id}`)}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Mail className="w-4 h-4 mr-2" />
-                      Send Email
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="w-4 h-4" />
-                <span className="truncate">{client.email}</span>
-              </div>
-              {client.phone && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="w-4 h-4" />
-                  <span>{client.phone}</span>
-                </div>
-              )}
-              {client.city && client.state && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="w-4 h-4" />
-                  <span>
-                    {client.city}, {client.state}
-                  </span>
-                </div>
-              )}
-              <div className="pt-3 border-t border-border flex justify-between text-sm">
-                <div>
-                  <p className="text-muted-foreground">Applications</p>
-                  <p className="font-semibold">{client.applicationCount}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground">Total Amount</p>
-                  <p className="font-semibold">${client.totalAmount.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {["Name","Email","Phone","Type","Loans","Funded","Status",""].map(h => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map(c => (
+                  <tr key={c.user_id} className="hover:bg-gray-50/70 cursor-pointer transition-colors" onClick={() => setSelected(c)}>
+                    <td className="px-5 py-3.5 font-semibold text-[#0d1f1e]">
+                      {(`${c.first_name||""} ${c.last_name||""}`.trim()) || (c.email?.trim() || null) || c.user_id.slice(0,8) + "…"}
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-400">{c.email}</td>
+                    <td className="px-5 py-3.5 text-gray-400">{c.phone || "—"}</td>
+                    <td className="px-5 py-3.5">
+                      <Badge className={c.borrower_type === "llc" ? "bg-purple-100 text-purple-800 text-xs" : "bg-blue-100 text-blue-800 text-xs"}>
+                        {c.borrower_type || "individual"}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-600">{c.loan_count}</td>
+                    <td className="px-5 py-3.5 font-bold text-[#0d1f1e]">{formatCurrency(c.total_funded)}</td>
+                    <td className="px-5 py-3.5">
+                      {c.latest_status ? (
+                        <Badge className={STATUS_COLORS[c.latest_status] + " text-xs"}>
+                          {c.latest_status.replace(/_/g," ")}
+                        </Badge>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-300 text-xs">View →</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {filteredClients.length === 0 && !isLoading && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No clients found
-          </CardContent>
-        </Card>
+      {/* Client Detail Panel */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelected(null)} />
+          <div className="relative w-full max-w-xl bg-white shadow-2xl overflow-y-auto flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-background z-10">
+              <h2 className="font-bold text-lg">
+                {(`${selected.first_name||""} ${selected.last_name||""}`.trim()) || selected.email || selected.user_id.slice(0,8) + "…"}
+              </h2>
+              <Button variant="ghost" size="icon" onClick={() => setSelected(null)}><X className="w-5 h-5" /></Button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Contact info */}
+              <section>
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Contact</p>
+                <div className="bg-muted rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-muted-foreground" />{selected.email || "—"}</div>
+                  <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground" />{selected.phone || "—"}</div>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span className="capitalize">{selected.borrower_type || "individual"}</span>
+                  </div>
+                </div>
+              </section>
+
+              {/* Virtual card */}
+              {selected.card && (
+                <section>
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Virtual Card</p>
+                  <div className="bg-[#0d1f1e] rounded-xl p-4 text-white text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Card</span>
+                      <span className="font-mono">••••{selected.card.card_last_four}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Credit Limit</span>
+                      <span className="font-semibold text-[#0d9488]">{formatCurrency(selected.card.credit_limit)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Drawn</span>
+                      <span>{formatCurrency(selected.card.drawn_amount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Available</span>
+                      <span>{formatCurrency(selected.card.available_balance)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Status</span>
+                      <Badge className={selected.card.card_status === "active" ? "bg-green-500/20 text-green-300" : "bg-amber-500/20 text-amber-300"}>
+                        {selected.card.card_status}
+                      </Badge>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Applications */}
+              <section>
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
+                  Applications ({selected.applications.length})
+                </p>
+                {selected.applications.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No applications yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {selected.applications.map(app => (
+                      <div key={app.id} className="border rounded-xl p-4 text-sm">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-semibold capitalize">{app.project_type} · {app.property_city}, {app.property_state}</p>
+                            <p className="text-muted-foreground text-xs mt-0.5">{new Date(app.created_at).toLocaleDateString()}</p>
+                          </div>
+                          <Badge className={STATUS_COLORS[app.status] || ""}>
+                            {app.status.replace(/_/g," ")}
+                          </Badge>
+                        </div>
+                        <div className="flex gap-6 text-muted-foreground">
+                          <span><span className="font-semibold text-foreground">{formatCurrency(app.loan_amount)}</span> loan</span>
+                          <span><span className="font-semibold text-foreground">{app.term_months}</span> months</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 font-mono">ID: {app.id.slice(0,12)}…</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

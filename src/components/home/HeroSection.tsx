@@ -1,108 +1,182 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Shield, Clock } from "lucide-react";
-import heroImage from "@/assets/hero-home.jpg";
+import { ArrowRight, MoveRight } from "lucide-react";
+import { LogoIcon } from "@/components/Logo";
 
-const benefits = [
-  { icon: CheckCircle2, text: "0% APR for 12 months" },
-  { icon: Shield, text: "No hidden fees" },
-  { icon: Clock, text: "Approval in minutes" },
+const stats = [
+  { value: "$30K", label: "Max Credit Line" },
+  { value: "24 hrs", label: "Typical Approval" },
+  { value: "2.5%", label: "Only Fee" },
+  { value: "NJ · NY", label: "Licensed Lender" },
 ];
 
 const HeroSection = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const handleGetStarted = () => {
-    if (user) {
-      navigate("/apply");
-    } else {
-      navigate("/auth", { state: { from: { pathname: "/apply" } } });
-    }
-  };
+  const handleApply = () =>
+    navigate(user ? "/apply" : "/auth", {
+      state: { from: { pathname: "/apply" } },
+    });
 
   return (
-    <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
-      {/* Background */}
-      <div 
-        className="absolute inset-0 z-0"
-        style={{ background: "var(--gradient-hero)" }}
+    <section className="relative min-h-screen flex flex-col justify-center overflow-hidden bg-[#091918]">
+      {/* Grid background */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(13,148,136,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(13,148,136,0.04) 1px, transparent 1px)",
+          backgroundSize: "64px 64px",
+        }}
       />
-      
-      {/* Decorative elements */}
-      <div className="absolute top-20 right-0 w-1/2 h-full opacity-10">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/3 w-64 h-64 bg-secondary rounded-full blur-3xl" />
-      </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-          {/* Content */}
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium mb-6 animate-fade-up">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              Trusted by 50,000+ homeowners
-            </div>
-            
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6 animate-fade-up stagger-1">
-              Transform Your Home,{" "}
-              <span className="gradient-text">Pay Over Time</span>
-            </h1>
-            
-            <p className="text-lg sm:text-xl text-muted-foreground mb-8 leading-relaxed animate-fade-up stagger-2">
-              Get the home improvements you need today with flexible financing. 
-              From kitchen renovations to bathroom upgrades, we make it easy to 
-              afford your dream home.
-            </p>
+      {/* Radial glow */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(13,148,136,0.12) 0%, transparent 70%)",
+        }}
+      />
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-10 animate-fade-up stagger-3">
-              <Button variant="hero" onClick={handleGetStarted}>
-                Get Started
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-              <Button variant="hero-outline" asChild>
-                <Link to="/#how-it-works">See How It Works</Link>
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap gap-6 animate-fade-up stagger-4">
-              {benefits.map((benefit, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <benefit.icon className="w-5 h-5 text-primary" />
-                  <span>{benefit.text}</span>
-                </div>
-              ))}
-            </div>
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-32 pb-20">
+        {/* Eyebrow */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#0d9488]/30 bg-[#0d9488]/8 text-[#0d9488] text-sm font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#0d9488] animate-pulse" />
+            NJ &amp; NY Licensed Home Improvement Lender
           </div>
+        </div>
 
-          {/* Image */}
-          <div className="relative animate-fade-up stagger-3">
-            <div className="relative rounded-3xl overflow-hidden shadow-card">
-              <img
-                src={heroImage}
-                alt="Beautiful modern home interior"
-                className="w-full h-auto object-cover aspect-[4/3]"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-foreground/20 to-transparent" />
-            </div>
-            
-            {/* Floating card */}
-            <div className="absolute -bottom-6 -left-6 bg-card rounded-2xl p-5 shadow-card animate-float">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-primary" />
+        {/* Headline */}
+        <div className="text-center max-w-5xl mx-auto mb-8">
+          <h1
+            className="font-bold leading-[1.05] tracking-tight text-white"
+            style={{ fontSize: "clamp(2.75rem, 6vw, 5.5rem)" }}
+          >
+            Your Home Deserves{" "}
+            <br className="hidden sm:block" />
+            <span
+              style={{
+                background: "linear-gradient(90deg, #0d9488, #2dd4bf, #0d9488)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Better Financing.
+            </span>
+          </h1>
+        </div>
+
+        {/* Sub-headline */}
+        <p className="text-center text-white/55 text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+          Flat-rate home improvement loans from{" "}
+          <span className="text-white/80 font-medium">$5,000 to $30,000</span>.
+          No surprises, no equity required, no runaround — just fast funding
+          for the project your home needs.
+        </p>
+
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
+          <button
+            onClick={handleApply}
+            className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-[#0d1f1e] text-base transition-all duration-300"
+            style={{
+              background: "linear-gradient(135deg, #0d9488, #2dd4bf)",
+              boxShadow: "0 0 40px rgba(13,148,136,0.35)",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                "0 0 60px rgba(13,148,136,0.55)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                "0 0 40px rgba(13,148,136,0.35)";
+            }}
+          >
+            Check My Rate
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <Link
+            to="/homeowners"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-medium text-white/80 hover:text-white text-base border border-white/15 hover:border-white/30 transition-all duration-300 hover:bg-white/5"
+          >
+            See How It Works
+            <MoveRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Stats bar */}
+        <div className="max-w-3xl mx-auto">
+          <div
+            className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-2xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
+            {stats.map((s, i) => (
+              <div
+                key={i}
+                className="flex flex-col items-center justify-center py-5 px-4 text-center"
+                style={{ background: "rgba(13,31,30,0.7)" }}
+              >
+                <p className="text-2xl font-bold text-[#0d9488] mb-0.5">{s.value}</p>
+                <p className="text-xs text-white/40 font-medium tracking-wide uppercase">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Card mockup */}
+        <div className="flex justify-center mt-16">
+          <div
+            className="relative w-80 sm:w-96 rounded-2xl p-7 select-none"
+            style={{
+              background:
+                "linear-gradient(135deg, #0f2040 0%, #1a3460 40%, #0f2040 100%)",
+              boxShadow:
+                "0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(13,148,136,0.2), inset 0 1px 0 rgba(255,255,255,0.06)",
+            }}
+          >
+            {/* Shine overlay */}
+            <div
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(115deg, rgba(13,148,136,0.08) 0%, transparent 50%)",
+              }}
+            />
+            <div className="relative">
+              <div className="flex justify-between items-start mb-8">
+                <LogoIcon size={30} />
+                <div className="flex gap-1">
+                  <div className="w-7 h-7 rounded-full bg-[#0d9488]/60" />
+                  <div className="w-7 h-7 rounded-full bg-[#0d9488]/30 -ml-3" />
                 </div>
+              </div>
+              <p className="text-white/30 text-xs uppercase tracking-widest mb-1">Available Credit</p>
+              <p className="text-white text-3xl font-bold mb-6">$24,500.00</p>
+              <p className="text-white font-mono tracking-widest text-base mb-6">
+                •••• •••• •••• 4821
+              </p>
+              <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-sm text-muted-foreground">Average savings</p>
-                  <p className="text-2xl font-bold text-foreground">$2,400/yr</p>
+                  <p className="text-white/30 text-[10px] uppercase tracking-wider">Cardholder</p>
+                  <p className="text-white text-sm font-semibold">Marcus A. Rivera</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/30 text-[10px] uppercase tracking-wider">Expires</p>
+                  <p className="text-white text-sm font-mono">04/27</p>
                 </div>
               </div>
             </div>
 
             {/* Floating badge */}
-            <div className="absolute -top-4 -right-4 bg-secondary text-secondary-foreground rounded-xl px-4 py-2 shadow-soft text-sm font-semibold">
-              ⭐ 4.9 Rating
+            <div
+              className="absolute -top-3 -right-3 px-3 py-1.5 rounded-lg text-xs font-bold text-[#0d1f1e]"
+              style={{ background: "linear-gradient(135deg, #0d9488, #2dd4bf)" }}
+            >
+              Approved ✓
             </div>
           </div>
         </div>

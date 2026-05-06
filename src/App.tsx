@@ -28,16 +28,35 @@ import AdminCards from "./pages/admin/AdminCards";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminCronJobs from "./pages/admin/AdminCronJobs";
 import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminAuditLog from "./pages/admin/AdminAuditLog";
+import AdminContactMessages from "./pages/admin/AdminContactMessages";
+import AdminTransactions from "./pages/admin/AdminTransactions";
+import AdminSettings from "./pages/admin/AdminSettings";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { analytics, initAnalytics } from "@/lib/analytics";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+// GA4 page view tracker
+const PageTracker = () => {
+  const location = useLocation();
+  useEffect(() => { analytics.pageView(location.pathname); }, [location]);
+  return null;
+};
+
+const App = () => {
+  useEffect(() => { initAnalytics(); }, []);
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <PageTracker />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
@@ -45,9 +64,11 @@ const App = () => (
             <Route path="/contractors" element={<Contractors />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/resources" element={<Resources />} />
+            <Route path="/resources" element={<Navigate to="/" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Navigate to="/auth" replace />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             
             {/* Protected User Routes */}
             <Route path="/apply" element={
@@ -85,14 +106,19 @@ const App = () => (
               <Route path="payments" element={<AdminPayments />} />
               <Route path="cron-jobs" element={<AdminCronJobs />} />
               <Route path="notifications" element={<AdminNotifications />} />
+              <Route path="audit-log" element={<AdminAuditLog />} />
+              <Route path="contact-messages" element={<AdminContactMessages />} />
+              <Route path="transactions" element={<AdminTransactions />} />
+              <Route path="settings" element={<AdminSettings />} />
             </Route>
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
